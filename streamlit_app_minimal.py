@@ -26,7 +26,10 @@ try:
         connect_to_weaviate,
         setup_weaviate_schema
     )
-except ImportError:
+    print("Successfully imported functions from etl_with_embeddings.py")
+except ImportError as e:
+    print(f"Could not import from etl_with_embeddings.py: {e}")
+    print("Using minimal function definitions instead")
     # Define minimal versions if import fails
     def get_text_embedding(text):
         model = SentenceTransformer("all-MiniLM-L6-v2")
