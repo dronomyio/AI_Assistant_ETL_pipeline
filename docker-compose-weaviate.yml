@@ -1,0 +1,39 @@
+version: '3.4'
+
+services:
+  weaviate:
+    image: semitechnologies/weaviate:1.25.2
+    ports:
+      - "8080:8080"
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: on-failure:0
+    environment:
+      QUERY_DEFAULTS_LIMIT: 20
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      CLUSTER_HOSTNAME: 'node1'
+      AUTOSCHEMA_ENABLED: 'true'
+      ENABLE_MODULES: ""
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  etl:
+    build:
+      context: .
+      dockerfile: Dockerfile.etl
+    depends_on:
+      weaviate:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./processed_data:/app/processed_data
+    environment:
+      - WEAVIATE_URL=http://weaviate:8080
+
+volumes:
+  weaviate_data:
