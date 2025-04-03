@@ -102,11 +102,23 @@ The easiest way to use Phoenix is with Docker Compose:
 
 1. Build and run the Docker containers:
    ```bash
-   docker-compose -f docker-compose-phoenix.yml build
-   docker-compose -f docker-compose-phoenix.yml up
+   # Stop any running containers and rebuild
+   docker-compose -f docker-compose-phoenix.yml down
+   # Start in detached mode
+   docker-compose -f docker-compose-phoenix.yml up --build -d
    ```
 
 2. Open your browser to http://localhost:6006 to view the Phoenix dashboard.
+
+##### Troubleshooting
+
+If you can't access the Phoenix UI:
+
+- Verify the containers are running: `docker ps | grep phoenix`
+- Check container logs: `docker logs ai_agent_etl_pipeline-etl-phoenix-1`
+- Try accessing with a different browser or in incognito mode
+- If using Docker Desktop, ensure port forwarding is working correctly
+- Try explicitly setting the port in your browser: http://127.0.0.1:6006 instead of localhost
 
 This will:
 - Start a Phoenix UI server container on port 6006

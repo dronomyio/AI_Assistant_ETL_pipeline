@@ -24,6 +24,8 @@ RUN mkdir -p /app/data /app/processed_data
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV BIND=0.0.0.0
+ENV PORT=6006
 
 # Command to run the Phoenix UI
 CMD ["python", "-m", "phoenix.server.main", "serve"]

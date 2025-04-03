@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   etl-phoenix:
     build:
@@ -26,3 +24,5 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
     command: python bulk_process_files_with_phoenix.py
+    depends_on:
+      - etl-phoenix
