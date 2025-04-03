@@ -1,0 +1,21 @@
+{
+    "mcpServers":
+    {
+        "LOCAL_MCP":
+        {
+            "command": "ABSOLUTE/PATH/TO/.local/bin/uv",
+            "args":
+            [
+                "--directory",
+                "ABSOLUTE/PATH/TO/YOUR-LOCAL-ETL-REPO/local_mcp",
+                "run",
+                "server.py"
+            ],
+            "env":
+            [
+            "UNSTRUCTURED_API_KEY":"<your key>"
+            ],
+            "disabled": false
+        }
+    }
+}
