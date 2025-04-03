@@ -103,11 +103,16 @@ def mock_generate_embedding(text_or_image, dimension=384):
 def try_load_sentence_transformer():
     """Try to load the sentence transformer model."""
     try:
-        from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer("all-MiniLM-L6-v2")
-        st.session_state.embedding_model = model
-        st.session_state.embedding_model_loaded = True
-        return True
+        # Wrap this in another try block to catch any errors during import or initialization
+        try:
+            from sentence_transformers import SentenceTransformer
+            model = SentenceTransformer("all-MiniLM-L6-v2")
+            st.session_state.embedding_model = model
+            st.session_state.embedding_model_loaded = True
+            return True
+        except Exception as e:
+            st.warning(f"Error loading sentence-transformers: {str(e)}")
+            return False
     except ImportError:
         st.warning("Could not import sentence-transformers - will use mock embeddings instead")
         return False
@@ -255,11 +260,16 @@ with tab2:
                     # Generate mock embedding
                     try:
                         # Try to use real image embedding if CLIP is available
-                        from sentence_transformers import SentenceTransformer
-                        model = SentenceTransformer("clip-ViT-B-32")
-                        embedding = model.encode(image).tolist()
-                        is_real = True
-                    except:
+                        try:
+                            from sentence_transformers import SentenceTransformer
+                            model = SentenceTransformer("clip-ViT-B-32")
+                            embedding = model.encode(image).tolist()
+                            is_real = True
+                        except Exception as e:
+                            st.warning(f"Error loading CLIP model: {str(e)}")
+                            embedding = mock_generate_embedding(image, dimension=512)
+                            is_real = False
+                    except ImportError:
                         # Fall back to mock embedding
                         embedding = mock_generate_embedding(image, dimension=512)
                         is_real = False

@@ -1,52 +1,35 @@
 #!/usr/bin/env python3
 """
-Redirector to the minimal Streamlit app for compatibility with Streamlit Cloud.
-This version is designed to have minimal dependencies to avoid import errors.
+AI ETL Pipeline Visualizer - Entry Point
+This is a simple redirector to the cloud-compatible version.
 """
 import streamlit as st
-import os
-import sys
 
-# Try to import the minimal app directly
-try:
-    # Add the current directory to the path
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    if current_dir not in sys.path:
-        sys.path.append(current_dir)
-    
-    # Import functions from the minimal app
-    from streamlit_app_minimal import *
-    
-    # Print success message
-    print("Successfully imported minimal app")
-    
-except ImportError as e:
-    st.error(f"Failed to import minimal app: {e}")
-    
-    # Basic app content as fallback
-    st.title("AI ETL Pipeline Visualizer")
-    
-    st.markdown("""
-    ## Welcome to the AI ETL Pipeline Visualizer
-    
-    This app is designed to visualize and interact with the ETL pipeline with vector embeddings, 
-    but we're currently experiencing import errors.
-    
-    Please try the minimal version instead:
-    
-    ```bash
-    streamlit run streamlit_app_minimal.py
-    ```
-    
-    Or check the repository for updated versions.
-    """)
-    
-    st.error("""
-    We encountered an error loading all dependencies. Please check that all required packages are installed:
-    
-    ```
-    pip install -r requirements_streamlit.txt
-    ```
-    
-    If you're using Streamlit Cloud, please use the `streamlit_app_minimal.py` file instead.
-    """)
+# Create Streamlit app UI
+st.title("AI ETL Pipeline Visualizer")
+st.markdown("""
+## Please use the cloud-compatible version
+
+We've detected you're using the main app entry point, but we recommend using the cloud-compatible version directly.
+
+Please run:
+```bash
+streamlit run streamlit_app_cloud.py
+```
+
+Or update your Streamlit Cloud configuration to use `streamlit_app_cloud.py` as the main file path with `requirements_cloud.txt`.
+""")
+
+st.info("The cloud-compatible version has fewer dependencies and works reliably on Streamlit Cloud.")
+
+st.markdown("""
+### Quick Setup Instructions for Streamlit Cloud:
+
+1. Go to your app's settings
+2. Change the Main file path to: `streamlit_app_cloud.py`
+3. Change the Requirements file to: `requirements_cloud.txt`
+4. Save and relaunch your app
+""")
+
+# Also show error indication
+st.error("This entry point may have dependency issues on Streamlit Cloud. Please use the cloud-compatible version instead.")
