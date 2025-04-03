@@ -96,7 +96,26 @@ This project includes integration with [Arize Phoenix](https://github.com/Arize-
 
 ### Setting Up Phoenix
 
-#### Local Setup
+#### Docker Setup (Recommended)
+
+The easiest way to use Phoenix is with Docker Compose:
+
+1. Build and run the Docker containers:
+   ```bash
+   docker-compose -f docker-compose-phoenix.yml build
+   docker-compose -f docker-compose-phoenix.yml up
+   ```
+
+2. Open your browser to http://localhost:6006 to view the Phoenix dashboard.
+
+This will:
+- Start a Phoenix UI server container on port 6006
+- Run the ETL processor container to process files and send telemetry data to Phoenix
+- Mount your local data and processed_data directories to the containers
+
+#### Local Setup (Alternative)
+
+If you prefer to run Phoenix locally without Docker:
 
 1. Install the required dependencies:
    ```bash
@@ -111,12 +130,12 @@ This project includes integration with [Arize Phoenix](https://github.com/Arize-
 3. To view the Phoenix UI:
    ```bash
    # In a separate terminal
-   PHOENIX_HOST=127.0.0.1 PHOENIX_PORT=8765 python -m phoenix.server.main serve
+   python -m phoenix.server.main serve
    ```
    
-   Then open your browser to http://127.0.0.1:8765 to view the Phoenix dashboard.
+   Then open your browser to http://localhost:6006 to view the Phoenix dashboard.
    
-   > **Note**: If you have issues accessing the UI on the default port (6006), try using an explicit host and port as shown above.
+   > **Note**: If you have issues accessing the UI on the default port (6006), try using environment variables: `PHOENIX_HOST=127.0.0.1 PHOENIX_PORT=8765 python -m phoenix.server.main serve`
 
 #### Docker Setup
 
