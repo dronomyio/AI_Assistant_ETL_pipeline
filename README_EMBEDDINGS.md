@@ -1,14 +1,19 @@
-# ETL Pipeline with Embeddings and Vector Storage
+# ETL Pipeline with Text & Image Embeddings and Vector Storage
 
-This extension to the AI Agent ETL Pipeline adds support for generating embeddings and storing them in a Weaviate vector database.
+This extension to the AI Agent ETL Pipeline adds support for generating embeddings for both text and images, storing them in a Weaviate vector database.
 
 ## Features
 
 - Processes text files and extracts structured elements
 - Copies image files to maintain a complete content repository
-- Generates embeddings for text elements using sentence-transformers
+- Generates embeddings for:
+  - Text elements using sentence-transformers
+  - Images using CLIP vision-language model
 - Stores elements and their embeddings in a Weaviate vector database
-- Provides a query interface for semantic search
+- Provides a powerful query interface for:
+  - Semantic text search
+  - Finding images by text description
+  - Finding similar images
 
 ## Setup
 
@@ -59,28 +64,73 @@ python etl_with_embeddings.py
 
 ## Querying the Vector Database
 
-Once data is loaded into Weaviate, you can query it using semantic search:
+Once data is loaded into Weaviate, you can query it using different methods:
+
+### Text Search
+
+Find text content semantically related to your query:
 
 ```sh
-python query_weaviate.py "your search query here"
+python query_weaviate.py --text "your search query here"
+```
+
+Example:
+```sh
+python query_weaviate.py --text "How to configure a camera"
+```
+
+### Image Search by Text Description
+
+Find images based on a text description:
+
+```sh
+python query_weaviate.py --image-by-text "description of image"
+```
+
+Example:
+```sh
+python query_weaviate.py --image-by-text "drone with camera"
+```
+
+### Similar Image Search
+
+Find images similar to a reference image:
+
+```sh
+python query_weaviate.py --similar-to /path/to/your/image.jpg
+```
+
+Example:
+```sh
+python query_weaviate.py --similar-to processed_data/images/documentation/images/voxl2/m0054-hero-f.png
+```
+
+### Combined Search
+
+If you don't specify a search type, both text and image search will be performed:
+
+```sh
+python query_weaviate.py "drone camera setup"
 ```
 
 This will:
-1. Convert your query to an embedding
-2. Find the most semantically similar content in the vector database
-3. Display the top results
-
-Example:
-
-```sh
-python query_weaviate.py "How to configure a camera"
-```
+1. Convert your query to embeddings
+2. Find semantically similar text content
+3. Find images related to your query
+4. Display both sets of results
 
 ## Customization
 
-### Embedding Model
+### Embedding Models
 
-The default embedding model is `all-MiniLM-L6-v2`. You can change it by modifying the `load_embedding_model` function in `etl_with_embeddings.py`.
+Two different embedding models are used:
+
+- **Text Embedding Model**: The default is `all-MiniLM-L6-v2`, a compact but powerful text embedding model.
+  - You can change it by modifying the `load_text_embedding_model` function in `etl_with_embeddings.py`
+  
+- **Image Embedding Model**: The default is `clip-ViT-B-32`, a vision-language model that can generate embeddings for images.
+  - You can change it by modifying the `load_image_embedding_model` function in `etl_with_embeddings.py`
+  - Other options include `clip-ViT-B-16` (higher quality but slower) or `clip-ViT-L-14` (highest quality, much slower)
 
 ### Weaviate Schema
 
@@ -97,14 +147,24 @@ You can customize processing options in the `main` function:
 
 The system follows this processing flow:
 
-1. Extract: Read text files and extract structured elements
+1. Extract: 
+   - Read text files and extract structured elements
+   - Identify image files for processing
+
 2. Transform: 
-   - Generate embeddings for each text element
-   - Create metadata for each element
+   - For text elements:
+     - Generate text embeddings using sentence-transformers
+     - Create metadata for each element
+   - For images:
+     - Generate image embeddings using CLIP
+     - Create metadata including file path and image ID
+
 3. Load: 
-   - Save structured data as JSON files
+   - Save structured text data as JSON files
    - Copy image files to output directory
-   - Store elements and embeddings in Weaviate vector database
+   - Store in Weaviate vector database:
+     - Text elements in the `DocumentElement` class
+     - Images in the `ImageElement` class
 
 ## Notes
 

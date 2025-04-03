@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to process all text files, generate embeddings, and store in Weaviate.
+Script to process text and image files, generate embeddings, and store in Weaviate.
 This demonstrates a complete local ETL process with vector database integration.
 """
 import os
@@ -9,6 +9,7 @@ import re
 import shutil
 import uuid
 import time
+import io
 from pathlib import Path
 from datetime import datetime
 import requests
@@ -16,26 +17,47 @@ from typing import List, Dict, Any, Optional, Union
 
 # For local embedding generation
 from sentence_transformers import SentenceTransformer
+from PIL import Image
 
 # For Weaviate integration
 import weaviate
 from weaviate.util import generate_uuid5
 
-# Global embedding model (loaded once)
-model = None
+# Global embedding models (loaded once)
+text_model = None
+image_model = None
 
-def load_embedding_model(model_name="all-MiniLM-L6-v2"):
-    """Load the embedding model once and reuse it."""
-    global model
-    if model is None:
-        print(f"Loading embedding model: {model_name}")
-        model = SentenceTransformer(model_name)
-    return model
+def load_text_embedding_model(model_name="all-MiniLM-L6-v2"):
+    """Load the text embedding model once and reuse it."""
+    global text_model
+    if text_model is None:
+        print(f"Loading text embedding model: {model_name}")
+        text_model = SentenceTransformer(model_name)
+    return text_model
 
-def get_embedding(text: str) -> List[float]:
+def load_image_embedding_model(model_name="clip-ViT-B-32"):
+    """Load the image embedding model once and reuse it."""
+    global image_model
+    if image_model is None:
+        print(f"Loading image embedding model: {model_name}")
+        image_model = SentenceTransformer(model_name)
+    return image_model
+
+def get_text_embedding(text: str) -> List[float]:
     """Generate an embedding for the given text."""
-    model = load_embedding_model()
+    model = load_text_embedding_model()
     return model.encode(text).tolist()
+
+def get_image_embedding(image_path: str) -> List[float]:
+    """Generate an embedding for the given image."""
+    try:
+        model = load_image_embedding_model()
+        img = Image.open(image_path)
+        return model.encode(img).tolist()
+    except Exception as e:
+        print(f"Error generating image embedding: {str(e)}")
+        # Return empty embedding if there's an error
+        return []
 
 def simple_text_processor(text):
     """
@@ -77,7 +99,7 @@ def connect_to_weaviate(url="http://localhost:8080"):
         return None
 
 def setup_weaviate_schema(client):
-    """Set up the schema in Weaviate for our document elements."""
+    """Set up the schema in Weaviate for our document elements and images."""
     if client is None:
         return False
     
@@ -86,15 +108,15 @@ def setup_weaviate_schema(client):
         schema = client.schema.get()
         class_names = [obj["class"] for obj in schema["classes"]] if "classes" in schema else []
         
-        # If our class exists, we're good
-        if "DocumentElement" in class_names:
-            print("DocumentElement schema already exists")
+        # If our classes exist, we're good
+        if "DocumentElement" in class_names and "ImageElement" in class_names:
+            print("DocumentElement and ImageElement schemas already exist")
             return True
     except:
         # If we get an error, we'll create the schema
         pass
     
-    # Define the schema for our document elements
+    # Define the schema for our document elements and images
     schema = {
         "classes": [
             {
@@ -128,6 +150,38 @@ def setup_weaviate_schema(client):
                         "description": "Additional metadata about the element"
                     }
                 ]
+            },
+            {
+                "class": "ImageElement",
+                "description": "An image with embeddings",
+                "vectorizer": "none",  # We'll provide our own vectors
+                "properties": [
+                    {
+                        "name": "file_path",
+                        "dataType": ["string"],
+                        "description": "Path to the image file"
+                    },
+                    {
+                        "name": "file_name",
+                        "dataType": ["string"],
+                        "description": "Name of the image file"
+                    },
+                    {
+                        "name": "source_file",
+                        "dataType": ["string"],
+                        "description": "The source file path"
+                    },
+                    {
+                        "name": "image_id",
+                        "dataType": ["string"],
+                        "description": "Unique identifier for the image"
+                    },
+                    {
+                        "name": "metadata",
+                        "dataType": ["object"],
+                        "description": "Additional metadata about the image"
+                    }
+                ]
             }
         ]
     }
@@ -135,7 +189,7 @@ def setup_weaviate_schema(client):
     try:
         # Create the schema
         client.schema.create(schema)
-        print("Created DocumentElement schema in Weaviate")
+        print("Created DocumentElement and ImageElement schemas in Weaviate")
         return True
     except Exception as e:
         print(f"Error creating schema: {str(e)}")
@@ -148,7 +202,7 @@ def store_element_in_weaviate(client, element, file_path):
     
     try:
         # Generate embedding for the element text
-        embedding = get_embedding(element["text"])
+        embedding = get_text_embedding(element["text"])
         
         # Create a unique ID based on file path and element ID
         element_uuid = generate_uuid5(element["element_id"])
@@ -171,6 +225,48 @@ def store_element_in_weaviate(client, element, file_path):
         print(f"Error storing element in Weaviate: {str(e)}")
         return False
 
+def store_image_in_weaviate(client, image_path, rel_path):
+    """Store an image in Weaviate with its embedding."""
+    if client is None:
+        return False
+    
+    try:
+        # Generate embedding for the image
+        embedding = get_image_embedding(image_path)
+        
+        # Skip if embedding failed
+        if not embedding:
+            print(f"  Skipping image (embedding failed): {image_path}")
+            return False
+        
+        # Create unique image ID
+        image_id = f"image-{uuid.uuid4()}"
+        image_uuid = generate_uuid5(image_id)
+        
+        # Get file name from path
+        file_name = os.path.basename(image_path)
+        
+        # Store the image with its embedding
+        client.data_object.create(
+            data_object={
+                "file_path": image_path,
+                "file_name": file_name,
+                "source_file": rel_path,
+                "image_id": image_id,
+                "metadata": {
+                    "type": "image",
+                    "extension": os.path.splitext(file_name)[1].lower()
+                }
+            },
+            class_name="ImageElement",
+            uuid=image_uuid,
+            vector=embedding
+        )
+        return True
+    except Exception as e:
+        print(f"Error storing image in Weaviate: {str(e)}")
+        return False
+
 def process_file(file_path, output_dir, input_base_dir, weaviate_client=None):
     """Process a single file, save output, and store in Weaviate if client provided."""
     try:
@@ -179,7 +275,7 @@ def process_file(file_path, output_dir, input_base_dir, weaviate_client=None):
         
         # Check if it's an image file
         if file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp')):
-            print(f"Copying image file: {file_path}")
+            print(f"Processing image file: {file_path}")
             
             # Create image output directory
             image_output_dir = os.path.join(output_dir, "images")
@@ -191,12 +287,20 @@ def process_file(file_path, output_dir, input_base_dir, weaviate_client=None):
             output_image_path = os.path.join(image_output_dir, rel_path)
             shutil.copy2(file_path, output_image_path)
             print(f"  Copied image -> {output_image_path}")
-            return 0, 0
+            
+            # Store image in Weaviate if client is provided
+            weaviate_image_count = 0
+            if weaviate_client is not None:
+                if store_image_in_weaviate(weaviate_client, file_path, rel_path):
+                    weaviate_image_count = 1
+                    print(f"  Stored image with embedding in Weaviate")
+            
+            return 0, weaviate_image_count, 1
         
         # Check if it's a text file
         elif not file_path.endswith(('.txt', '.md', '.rst', '.csv')):
             print(f"Skipping non-text file: {file_path}")
-            return 0, 0
+            return 0, 0, 0
         
         print(f"Processing file: {file_path}")
         
@@ -226,12 +330,12 @@ def process_file(file_path, output_dir, input_base_dir, weaviate_client=None):
         
         print(f"  Processed {len(elements)} elements -> {output_file}")
         if weaviate_count > 0:
-            print(f"  Stored {weaviate_count} elements in Weaviate")
+            print(f"  Stored {weaviate_count} text elements in Weaviate")
         
-        return len(elements), weaviate_count
+        return len(elements), weaviate_count, 0
     except Exception as e:
         print(f"  Error processing {file_path}: {str(e)}")
-        return 0, 0
+        return 0, 0, 0
 
 def create_sample_files(input_dir):
     """Create sample files for testing if the directory is empty."""
@@ -297,7 +401,8 @@ def process_directory(input_dir, output_dir, recursive=True, use_weaviate=True):
     
     # Connect to Weaviate if requested
     weaviate_client = None
-    weaviate_element_count = 0
+    weaviate_text_count = 0
+    weaviate_image_count = 0
     
     if use_weaviate:
         # Check if Weaviate is available
@@ -327,23 +432,22 @@ def process_directory(input_dir, output_dir, recursive=True, use_weaviate=True):
         for file in files:
             file_path = os.path.join(root, file)
             
-            # Check if it's an image
-            if file_path.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg', '.webp')):
-                process_file(file_path, output_dir, input_dir)
+            # Process all files (text and images)
+            elements, weaviate_elements, is_image = process_file(file_path, output_dir, input_dir, weaviate_client)
+            
+            if is_image:
                 image_file_count += 1
-            else:
-                # Process text and other files
-                elements, weaviate_elements = process_file(file_path, output_dir, input_dir, weaviate_client)
-                if elements:
-                    text_file_count += 1
-                    element_count += elements
-                    weaviate_element_count += weaviate_elements
+                weaviate_image_count += weaviate_elements
+            elif elements > 0:
+                text_file_count += 1
+                element_count += elements
+                weaviate_text_count += weaviate_elements
         
         # Stop if not recursive
         if not recursive:
             break
     
-    return text_file_count, element_count, image_file_count, weaviate_element_count
+    return text_file_count, element_count, image_file_count, weaviate_text_count, weaviate_image_count
 
 def main():
     # Get current script directory
@@ -363,7 +467,7 @@ def main():
     
     # Process all files in the directory
     start_time = time.time()
-    text_file_count, element_count, image_file_count, weaviate_count = process_directory(
+    text_file_count, element_count, image_file_count, weaviate_text_count, weaviate_image_count = process_directory(
         input_dir, output_dir, recursive=True, use_weaviate=use_weaviate
     )
     processing_time = time.time() - start_time
@@ -374,7 +478,8 @@ def main():
     print(f"Copied {image_file_count} image files")
     print(f"Extracted {element_count} elements")
     if use_weaviate:
-        print(f"Stored {weaviate_count} elements in Weaviate")
+        print(f"Stored {weaviate_text_count} text elements in Weaviate")
+        print(f"Stored {weaviate_image_count} images in Weaviate")
     print(f"Processing time: {processing_time:.2f} seconds")
     print(f"Results saved to: {output_dir}")
     print(f"Images saved to: {os.path.join(output_dir, 'images')}")

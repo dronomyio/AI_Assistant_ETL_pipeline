@@ -2,11 +2,26 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install dependencies
-RUN pip install --no-cache-dir sentence-transformers weaviate-client requests
+# Install system dependencies for Pillow and PyTorch
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    python3-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    libpng-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    sentence-transformers \
+    weaviate-client \
+    requests \
+    pillow
 
 # Copy application code
 COPY etl_with_embeddings.py /app/
+COPY query_weaviate.py /app/
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
