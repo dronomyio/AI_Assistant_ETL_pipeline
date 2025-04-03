@@ -2,6 +2,9 @@
 
 This project creates an ETL pipeline for processing local documentation files using the Unstructured API. The data is extracted from local files, transformed using Unstructured API capabilities, and loaded to a local directory for further use.
 
+## Project Overview
+This ETL pipeline is designed for local file processing without the need for external services like MongoDB or Google Drive. It operates entirely with local directories as both source and destination.
+
 ## Table of Contents:
 1. [Setup](#setup)
 2. [Requirements](#requirements)
