@@ -198,6 +198,49 @@ python query_with_phoenix.py --disable-phoenix "search query here"
 
 This will search through processed documents and send search telemetry to Phoenix for visualization.
 
+## Weaviate Integration for Vector Search
+
+This project includes integration with [Weaviate](https://weaviate.io/), a vector database for efficient semantic search across both text and image embeddings.
+
+### Setting Up Weaviate
+
+For detailed setup instructions and usage guide, see the [Weaviate Integration README](README_WEAVIATE.md).
+
+#### Quick Start
+
+1. Start the ETL pipeline with Weaviate:
+   ```bash
+   docker-compose -f docker-compose-weaviate.yml up -d
+   ```
+
+2. Run a search query:
+   ```bash
+   docker exec -it ai_agent_etl_pipeline-etl-importer-1 python query_with_weaviate.py "your search query"
+   ```
+
+### Features
+
+- Store text and image embeddings in Weaviate vector database
+- Support for both local Weaviate instance and Weaviate Cloud Service
+- Semantic search across text content and images
+- Integration with embedding providers like OpenAI and Cohere
+
+### Example Usage
+
+```bash
+# Set up environment variables for Weaviate Cloud
+export WEAVIATE_URL=https://your-cluster-url.weaviate.cloud
+export WEAVIATE_API_KEY=your-api-key
+export COHERE_API_KEY=your-cohere-api-key
+
+# Process documents and import to Weaviate
+python bulk_process_files_with_phoenix.py
+python weaviate_client.py
+
+# Search through documents
+python query_with_weaviate.py "your search query"
+```
+
 ## Additional Resources
 
 For more detailed information on each service:
@@ -205,3 +248,4 @@ For more detailed information on each service:
 - [LocalETL README](LocalETL/README.md)
 - [MCPHackathon README](MCPHackathon/README.md)
 - [Arize Phoenix Documentation](https://docs.arize.com/phoenix/)
+- [Weaviate Documentation](https://weaviate.io/developers/weaviate)
