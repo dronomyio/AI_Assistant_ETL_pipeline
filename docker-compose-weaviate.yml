@@ -1,10 +1,12 @@
 version: '3.4'
 
 services:
+  # Option 1: Connect to local Weaviate instance (for development/testing)
   weaviate:
     image: semitechnologies/weaviate:1.25.2
     ports:
       - "8080:8080"
+      - "50051:50051" # gRPC port for Weaviate client v4
     volumes:
       - weaviate_data:/var/lib/weaviate
     restart: on-failure:0
@@ -22,18 +24,45 @@ services:
       timeout: 5s
       retries: 5
 
-  etl:
+  # ETL processor using Phoenix for observability
+  etl-processor:
     build:
       context: .
-      dockerfile: Dockerfile.etl
+      dockerfile: Dockerfile.weaviate
     depends_on:
       weaviate:
         condition: service_healthy
     volumes:
       - ./data:/app/data
       - ./processed_data:/app/processed_data
+      - ./.env:/app/.env
     environment:
-      - WEAVIATE_URL=http://weaviate:8080
+      - PYTHONUNBUFFERED=1
+    command: python bulk_process_files_with_phoenix.py
+
+  # Import data into Weaviate
+  etl-importer:
+    build:
+      context: .
+      dockerfile: Dockerfile.weaviate
+    depends_on:
+      weaviate:
+        condition: service_healthy
+      etl-processor:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/app/data
+      - ./processed_data:/app/processed_data
+      - ./.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      # For local Weaviate instance
+      - WEAVIATE_URL=http://weaviate
+      # For Weaviate Cloud Service, uncomment and set these:
+      # - WEAVIATE_URL=your-cluster-url.weaviate.cloud
+      # - WEAVIATE_API_KEY=your-weaviate-api-key
+      # - COHERE_API_KEY=your-cohere-api-key
+    command: python weaviate_client.py --processed-dir /app/processed_data
 
 volumes:
   weaviate_data:

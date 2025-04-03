@@ -1,0 +1,31 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements_weaviate.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements_weaviate.txt
+
+# Copy the application code
+COPY bulk_process_files_with_phoenix.py .
+COPY weaviate_client.py .
+COPY query_with_weaviate.py .
+COPY phoenix_observer.py .
+
+# Create directories for data
+RUN mkdir -p /app/data /app/processed_data
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
+# Default command
+CMD ["python", "weaviate_client.py", "--processed-dir", "/app/processed_data"]
