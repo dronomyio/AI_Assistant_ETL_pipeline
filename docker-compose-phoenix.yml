@@ -13,7 +13,7 @@ services:
       - ./.phoenix:/root/.phoenix  # Store Phoenix data
     environment:
       - PYTHONUNBUFFERED=1
-    command: python -m phoenix.server.app
+    command: python -m phoenix.server.main serve
 
   etl-processor:
     build:

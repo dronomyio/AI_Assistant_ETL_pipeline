@@ -111,7 +111,7 @@ This project includes integration with [Arize Phoenix](https://github.com/Arize-
 3. To view the Phoenix UI:
    ```bash
    # In a separate terminal
-   python -m phoenix.server.app
+   python -m phoenix.server.main serve
    ```
    
    Then open your browser to http://localhost:6006 to view the Phoenix dashboard.

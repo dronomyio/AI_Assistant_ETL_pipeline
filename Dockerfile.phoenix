@@ -26,4 +26,4 @@ RUN mkdir -p /app/data /app/processed_data
 ENV PYTHONUNBUFFERED=1
 
 # Command to run the Phoenix UI
-CMD ["python", "-m", "phoenix.server.app"]
+CMD ["python", "-m", "phoenix.server.main", "serve"]
