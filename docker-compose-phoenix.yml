@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  etl-phoenix:
+    build:
+      context: .
+      dockerfile: Dockerfile.phoenix
+    ports:
+      - "6006:6006"  # Phoenix UI
+    volumes:
+      - ./data:/app/data
+      - ./processed_data:/app/processed_data
+      - ./.phoenix:/root/.phoenix  # Store Phoenix data
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python -m phoenix.server.app
+
+  etl-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile.phoenix
+    volumes:
+      - ./data:/app/data
+      - ./processed_data:/app/processed_data
+      - ./.phoenix:/root/.phoenix  # Share Phoenix data with UI
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python bulk_process_files_with_phoenix.py
