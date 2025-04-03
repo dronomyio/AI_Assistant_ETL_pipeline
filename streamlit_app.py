@@ -101,21 +101,13 @@ def mock_generate_embedding(text_or_image, dimension=384):
     return np.random.normal(0, 1, dimension).tolist()
 
 def try_load_sentence_transformer():
-    """Try to load the sentence transformer model."""
-    try:
-        # Wrap this in another try block to catch any errors during import or initialization
-        try:
-            from sentence_transformers import SentenceTransformer
-            model = SentenceTransformer("all-MiniLM-L6-v2")
-            st.session_state.embedding_model = model
-            st.session_state.embedding_model_loaded = True
-            return True
-        except Exception as e:
-            st.warning(f"Error loading sentence-transformers: {str(e)}")
-            return False
-    except ImportError:
-        st.warning("Could not import sentence-transformers - will use mock embeddings instead")
-        return False
+    """
+    This is just a placeholder function that always returns False.
+    We're removing actual sentence-transformers dependency to avoid compilation issues.
+    """
+    st.warning("Sentence Transformers are disabled in this cloud version")
+    # Always use mock embeddings in the cloud version
+    return False
 
 # Sidebar
 with st.sidebar:
@@ -142,17 +134,20 @@ with st.sidebar:
     This app demonstrates the AI ETL Pipeline with vector embeddings. It provides:
     
     - Text processing with contextual chunking
-    - Embedding generation (mock or real)
+    - Mock embedding generation (simulated vectors)
     - Basic visualization
     
-    This version is designed to work on Streamlit Cloud with minimal dependencies.
+    This is a simplified cloud-compatible version designed to run on Streamlit Cloud.
+    For the full version with real embeddings and Weaviate integration, please run the app locally.
     """)
 
 # Main content
-st.title("AI ETL Pipeline Visualizer")
+st.title("AI ETL Pipeline Visualizer (Cloud Version)")
 st.markdown("""
-This simplified app demonstrates the key concepts of the ETL pipeline with vector embeddings.
-Enter text below to see how it gets processed and embedded.
+This cloud-compatible version demonstrates the key concepts of the ETL pipeline.
+It uses mock embeddings instead of real ML models to ensure compatibility with Streamlit Cloud.
+
+Enter text below to see how it gets processed with contextual chunking and mock embeddings.
 """)
 
 # Tabs
@@ -257,22 +252,10 @@ with tab2:
             
             if process_image_button:
                 with st.spinner("Processing image..."):
-                    # Generate mock embedding
-                    try:
-                        # Try to use real image embedding if CLIP is available
-                        try:
-                            from sentence_transformers import SentenceTransformer
-                            model = SentenceTransformer("clip-ViT-B-32")
-                            embedding = model.encode(image).tolist()
-                            is_real = True
-                        except Exception as e:
-                            st.warning(f"Error loading CLIP model: {str(e)}")
-                            embedding = mock_generate_embedding(image, dimension=512)
-                            is_real = False
-                    except ImportError:
-                        # Fall back to mock embedding
-                        embedding = mock_generate_embedding(image, dimension=512)
-                        is_real = False
+                    # Generate mock embedding only in cloud version
+                    embedding = mock_generate_embedding(image, dimension=512)
+                    is_real = False
+                    st.info("Using mock embeddings in cloud version")
                     
                     # Store in session state
                     st.session_state.image_embedding = embedding
