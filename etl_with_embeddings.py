@@ -59,9 +59,55 @@ def get_image_embedding(image_path: str) -> List[float]:
         # Return empty embedding if there's an error
         return []
 
-def simple_text_processor(text):
+def contextual_chunker(text, chunk_size=1000, chunk_overlap=200):
     """
-    A simple text processor that breaks text into elements.
+    Split text into overlapping chunks to maintain context across chunks.
+    
+    Args:
+        text: The text to split into chunks
+        chunk_size: Maximum size of each chunk (in characters)
+        chunk_overlap: Overlap between consecutive chunks (in characters)
+    
+    Returns:
+        List of text chunks with context
+    """
+    # If text is smaller than chunk_size, return it as a single chunk
+    if len(text) <= chunk_size:
+        return [text]
+    
+    chunks = []
+    start = 0
+    
+    while start < len(text):
+        # Find the end of this chunk
+        end = min(start + chunk_size, len(text))
+        
+        # If we're not at the end of the text,
+        # try to break at a sentence or paragraph boundary
+        if end < len(text):
+            # First try to find a paragraph break
+            last_break = text.rfind('\n\n', start, end)
+            if last_break != -1 and last_break > start + chunk_size // 2:
+                end = last_break
+            else:
+                # Try to find a sentence break (period followed by space)
+                last_period = text.rfind('. ', start, end)
+                if last_period != -1 and last_period > start + chunk_size // 2:
+                    end = last_period + 1  # Include the period
+        
+        # Extract chunk
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        
+        # Move start to create overlap
+        start = end - chunk_overlap if end - chunk_overlap > start else end
+    
+    return chunks
+
+def simple_text_processor(text, use_chunking=True, chunk_size=1000, chunk_overlap=200):
+    """
+    A text processor that breaks text into elements and can perform contextual chunking.
     This is a simplified version of what the Unstructured API might do.
     """
     elements = []
@@ -69,23 +115,53 @@ def simple_text_processor(text):
     # Extract title (first line)
     lines = text.split('\n')
     if lines and lines[0].strip():
+        title = lines[0].strip()
         elements.append({
             "type": "Title",
-            "text": lines[0].strip(),
+            "text": title,
             "element_id": f"element-{uuid.uuid4()}",
             "metadata": {"source_type": "title"}
         })
+    else:
+        title = ""
+    
+    # Join the rest of the text
+    content = "\n".join(lines[1:]) if len(lines) > 1 else ""
     
     # Process paragraphs (separated by blank lines)
-    paragraphs = re.split(r'\n\s*\n', text)
-    for i, para in enumerate(paragraphs):
-        if para.strip():
+    paragraphs = re.split(r'\n\s*\n', content)
+    
+    if use_chunking:
+        # Join paragraphs with their original separators for chunking
+        full_content = title + "\n\n" + content if title else content
+        
+        # Generate overlapping chunks with context
+        chunks = contextual_chunker(full_content, chunk_size, chunk_overlap)
+        
+        # Process each chunk as a separate element
+        for i, chunk in enumerate(chunks):
             elements.append({
-                "type": "Text",
-                "text": para.strip(),
-                "element_id": f"element-{uuid.uuid4()}",
-                "metadata": {"source_type": "paragraph", "index": i}
+                "type": "Chunk",
+                "text": chunk,
+                "element_id": f"chunk-{uuid.uuid4()}",
+                "metadata": {
+                    "source_type": "text_chunk", 
+                    "index": i,
+                    "chunk_size": chunk_size,
+                    "chunk_overlap": chunk_overlap,
+                    "total_chunks": len(chunks)
+                }
             })
+    else:
+        # Traditional paragraph processing
+        for i, para in enumerate(paragraphs):
+            if para.strip():
+                elements.append({
+                    "type": "Text",
+                    "text": para.strip(),
+                    "element_id": f"element-{uuid.uuid4()}",
+                    "metadata": {"source_type": "paragraph", "index": i}
+                })
     
     return elements
 
@@ -132,7 +208,7 @@ def setup_weaviate_schema(client):
                     {
                         "name": "type",
                         "dataType": ["string"],
-                        "description": "The type of element (Title, Text, etc.)"
+                        "description": "The type of element (Title, Text, Chunk, etc.)"
                     },
                     {
                         "name": "source_file",
@@ -147,7 +223,22 @@ def setup_weaviate_schema(client):
                     {
                         "name": "metadata",
                         "dataType": ["object"],
-                        "description": "Additional metadata about the element"
+                        "description": "Additional metadata about the element, including chunking information"
+                    },
+                    {
+                        "name": "is_chunk",
+                        "dataType": ["boolean"],
+                        "description": "Whether this element is a chunk of a larger text"
+                    },
+                    {
+                        "name": "chunk_index",
+                        "dataType": ["int"],
+                        "description": "Index of this chunk in the sequence"
+                    },
+                    {
+                        "name": "total_chunks",
+                        "dataType": ["int"],
+                        "description": "Total number of chunks for this document"
                     }
                 ]
             },
@@ -207,6 +298,14 @@ def store_element_in_weaviate(client, element, file_path):
         # Create a unique ID based on file path and element ID
         element_uuid = generate_uuid5(element["element_id"])
         
+        # Get metadata
+        metadata = element.get("metadata", {})
+        
+        # Check if this is a chunked element
+        is_chunk = element["type"] == "Chunk"
+        chunk_index = metadata.get("index", 0) if is_chunk else 0
+        total_chunks = metadata.get("total_chunks", 1) if is_chunk else 1
+        
         # Store the element with its embedding
         client.data_object.create(
             data_object={
@@ -214,7 +313,10 @@ def store_element_in_weaviate(client, element, file_path):
                 "type": element["type"],
                 "source_file": file_path,
                 "element_id": element["element_id"],
-                "metadata": element.get("metadata", {})
+                "metadata": metadata,
+                "is_chunk": is_chunk,
+                "chunk_index": chunk_index,
+                "total_chunks": total_chunks
             },
             class_name="DocumentElement",
             uuid=element_uuid,
@@ -457,13 +559,27 @@ def main():
     input_dir = os.path.join(script_dir, "data")
     output_dir = os.path.join(script_dir, "processed_data")
     
-    # Check if Weaviate is enabled
+    # Configuration options
     use_weaviate = True  # Set to False to disable Weaviate integration
+    use_chunking = True  # Set to True to enable contextual chunking
+    chunk_size = 1000    # Maximum size of each chunk in characters
+    chunk_overlap = 200  # Overlap between consecutive chunks
+    
+    # Update the text_processor function with chunking parameters
+    global simple_text_processor
+    original_text_processor = simple_text_processor
+    simple_text_processor = lambda text: original_text_processor(
+        text, use_chunking=use_chunking, chunk_size=chunk_size, chunk_overlap=chunk_overlap
+    )
     
     print(f"Starting ETL process at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Input directory: {input_dir}")
     print(f"Output directory: {output_dir}")
     print(f"Weaviate integration: {'Enabled' if use_weaviate else 'Disabled'}")
+    print(f"Contextual chunking: {'Enabled' if use_chunking else 'Disabled'}")
+    if use_chunking:
+        print(f"  Chunk size: {chunk_size} characters")
+        print(f"  Chunk overlap: {chunk_overlap} characters")
     
     # Process all files in the directory
     start_time = time.time()

@@ -5,13 +5,14 @@ This extension to the AI Agent ETL Pipeline adds support for generating embeddin
 ## Features
 
 - Processes text files and extracts structured elements
+- Applies contextual chunking to preserve semantic context
 - Copies image files to maintain a complete content repository
 - Generates embeddings for:
   - Text elements using sentence-transformers
   - Images using CLIP vision-language model
 - Stores elements and their embeddings in a Weaviate vector database
 - Provides a powerful query interface for:
-  - Semantic text search
+  - Semantic text search with context-aware chunk recombination
   - Finding images by text description
   - Finding similar images
 
@@ -79,6 +80,12 @@ Example:
 python query_weaviate.py --text "How to configure a camera"
 ```
 
+By default, chunks from the same document are grouped and merged to provide more complete context. To disable this and see individual chunks:
+
+```sh
+python query_weaviate.py --text --no-group "your search query here"
+```
+
 ### Image Search by Text Description
 
 Find images based on a text description:
@@ -115,7 +122,7 @@ python query_weaviate.py "drone camera setup"
 
 This will:
 1. Convert your query to embeddings
-2. Find semantically similar text content
+2. Find semantically similar text content (with chunk grouping)
 3. Find images related to your query
 4. Display both sets of results
 
@@ -131,6 +138,29 @@ Two different embedding models are used:
 - **Image Embedding Model**: The default is `clip-ViT-B-32`, a vision-language model that can generate embeddings for images.
   - You can change it by modifying the `load_image_embedding_model` function in `etl_with_embeddings.py`
   - Other options include `clip-ViT-B-16` (higher quality but slower) or `clip-ViT-L-14` (highest quality, much slower)
+
+### Contextual Chunking
+
+Contextual chunking is enabled by default with these settings:
+
+- **Chunk Size**: 1000 characters per chunk
+- **Chunk Overlap**: 200 characters of overlap between chunks
+
+You can customize these settings in the `main` function of `etl_with_embeddings.py`:
+
+```python
+# Configuration options
+use_weaviate = True    # Set to False to disable Weaviate integration
+use_chunking = True    # Set to True to enable contextual chunking
+chunk_size = 1000      # Maximum size of each chunk in characters
+chunk_overlap = 200    # Overlap between consecutive chunks
+```
+
+Chunking creates overlapping segments of text that:
+- Maintain context across document boundaries
+- Allow for more precise vector representation
+- Break down large documents into manageable pieces
+- Improve retrieval of longer passages
 
 ### Weaviate Schema
 
@@ -149,12 +179,13 @@ The system follows this processing flow:
 
 1. Extract: 
    - Read text files and extract structured elements
+   - Apply contextual chunking to create overlapping segments
    - Identify image files for processing
 
 2. Transform: 
-   - For text elements:
+   - For text elements and chunks:
      - Generate text embeddings using sentence-transformers
-     - Create metadata for each element
+     - Create metadata for each element (including chunk position)
    - For images:
      - Generate image embeddings using CLIP
      - Create metadata including file path and image ID
@@ -165,6 +196,17 @@ The system follows this processing flow:
    - Store in Weaviate vector database:
      - Text elements in the `DocumentElement` class
      - Images in the `ImageElement` class
+
+4. Query:
+   - Text search with chunk recombination
+   - Image search via text description
+   - Image similarity search
+
+The contextual chunking algorithm:
+1. Splits documents into overlapping chunks
+2. Tries to break at natural boundaries (paragraphs, sentences)
+3. Maintains context through controlled overlap
+4. Optimizes retrieval by balancing chunk size and specificity
 
 ## Notes
 
