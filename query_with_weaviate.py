@@ -95,7 +95,7 @@ def main():
     parser.add_argument("--top-k", type=int, default=5, help="Number of top results to return")
     parser.add_argument("--cluster-url", help="URL of Weaviate Cloud cluster")
     parser.add_argument("--api-key", help="API key for Weaviate Cloud")
-    parser.add_argument("--embedding-api-key", help="API key for embedding provider (Cohere or OpenAI)")
+    parser.add_argument("--embedding-api-key", help="API key for embedding provider (OpenAI or Cohere)")
     args = parser.parse_args()
     
     try:
@@ -125,10 +125,10 @@ def main():
             print("  With environment variables:")
             print("    export WEAVIATE_URL=https://your-cluster-url.weaviate.cloud")
             print("    export WEAVIATE_API_KEY=your-api-key")
-            print("    export COHERE_API_KEY=your-cohere-api-key")
+            print("    export OPENAI_API_KEY=your-openai-api-key")
             print("    python query_with_weaviate.py 'your search query'")
             print("\n  With command line arguments:")
-            print("    python query_with_weaviate.py 'your search query' --cluster-url https://your-cluster-url.weaviate.cloud --api-key your-api-key --embedding-api-key your-cohere-api-key")
+            print("    python query_with_weaviate.py 'your search query' --cluster-url https://your-cluster-url.weaviate.cloud --api-key your-api-key --embedding-api-key your-openai-api-key")
 
 if __name__ == "__main__":
     main()

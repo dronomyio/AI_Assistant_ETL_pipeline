@@ -31,12 +31,12 @@ class WeaviateClient:
         Args:
             cluster_url: URL of the Weaviate cluster (e.g., from Weaviate Cloud Service)
             api_key: API key for Weaviate Cloud
-            embedding_api_key: API key for embedding provider (e.g., Cohere, OpenAI)
+            embedding_api_key: API key for embedding provider (e.g., OpenAI, Cohere)
         """
         # Get credentials from environment variables if not provided
         self.cluster_url = cluster_url or os.environ.get("WEAVIATE_URL")
         self.api_key = api_key or os.environ.get("WEAVIATE_API_KEY")
-        self.embedding_api_key = embedding_api_key or os.environ.get("COHERE_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        self.embedding_api_key = embedding_api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("COHERE_API_KEY")
         
         if not self.cluster_url or not self.api_key:
             raise ValueError("Weaviate URL and API key must be provided or set as environment variables")
@@ -45,10 +45,10 @@ class WeaviateClient:
         headers = {}
         if self.embedding_api_key:
             # Determine which embedding provider to use based on environment variables
-            if os.environ.get("COHERE_API_KEY"):
-                headers["X-Cohere-Api-Key"] = self.embedding_api_key
-            elif os.environ.get("OPENAI_API_KEY"):
+            if os.environ.get("OPENAI_API_KEY"):
                 headers["X-OpenAI-Api-Key"] = self.embedding_api_key
+            elif os.environ.get("COHERE_API_KEY"):
+                headers["X-Cohere-Api-Key"] = self.embedding_api_key
         
         # Connect to Weaviate Cloud
         self.client = weaviate.connect_to_weaviate_cloud(
@@ -287,7 +287,7 @@ def main():
     parser.add_argument("--processed-dir", default="processed_data", help="Directory containing processed data")
     parser.add_argument("--cluster-url", help="URL of Weaviate Cloud cluster")
     parser.add_argument("--api-key", help="API key for Weaviate Cloud")
-    parser.add_argument("--embedding-api-key", help="API key for embedding provider (Cohere or OpenAI)")
+    parser.add_argument("--embedding-api-key", help="API key for embedding provider (OpenAI or Cohere)")
     args = parser.parse_args()
     
     try:
@@ -302,9 +302,9 @@ def main():
                 env_content.append(f"WEAVIATE_API_KEY={args.api_key}")
                 
             if args.embedding_api_key:
-                if not os.environ.get("COHERE_API_KEY") and not os.environ.get("OPENAI_API_KEY"):
-                    # Assume Cohere by default
-                    env_content.append(f"COHERE_API_KEY={args.embedding_api_key}")
+                if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("COHERE_API_KEY"):
+                    # Assume OpenAI by default
+                    env_content.append(f"OPENAI_API_KEY={args.embedding_api_key}")
             
             # Write to .env file if we have any content
             if env_content:
