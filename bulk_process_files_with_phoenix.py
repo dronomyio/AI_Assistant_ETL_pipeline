@@ -90,10 +90,10 @@ def contextual_chunker(text, chunk_size=1000, chunk_overlap=200):
     
     return chunks
 
-def get_mock_embedding(text: str) -> List[float]:
+def get_embedding(text: str) -> List[float]:
     """
-    Generate a mock embedding for the text.
-    In a real implementation, this would call an embedding model.
+    Generate an embedding for the text using OpenAI's API.
+    Falls back to mock embedding if OpenAI API is not configured.
     
     Args:
         text: The text to generate an embedding for
@@ -101,15 +101,39 @@ def get_mock_embedding(text: str) -> List[float]:
     Returns:
         A list of floats representing the embedding
     """
+    import os
     import hashlib
     import numpy as np
     
+    # Try to use OpenAI's API if API key is available
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    if openai_api_key:
+        try:
+            import openai
+            client = openai.OpenAI(api_key=openai_api_key)
+            response = client.embeddings.create(
+                input=text,
+                model="text-embedding-3-small"  # Most recent model
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            print(f"Warning: Couldn't use OpenAI embeddings: {str(e)}")
+            print("Falling back to mock embeddings")
+    else:
+        print("Warning: No OpenAI API key found, using mock embeddings")
+    
+    # Fallback to mock embeddings
     # Create a deterministic but unique embedding based on the text
     text_hash = hashlib.md5(text.encode()).hexdigest()
     np.random.seed(int(text_hash[:8], 16))
     
     # Generate a mock embedding with 384 dimensions
     return np.random.normal(0, 1, 384).tolist()
+
+# Keep the old function name for backward compatibility
+def get_mock_embedding(text: str) -> List[float]:
+    """Alias for get_embedding for backward compatibility"""
+    return get_embedding(text)
 
 def process_file(
     file_path: str, 
@@ -172,10 +196,10 @@ def process_file(
                 start_time = time.time()
                 observer.log_embedding_span(
                     trace_id=trace_id,
-                    embedding_model="clip-ViT-B-32",
+                    embedding_model="text-embedding-3-small" if os.environ.get("OPENAI_API_KEY") else "clip-ViT-B-32",
                     text_or_image=os.path.basename(file_path),
                     embedding_type="image",
-                    embedding_dim=512,
+                    embedding_dim=512 if not os.environ.get("OPENAI_API_KEY") else 1536,
                     duration_ms=(time.time() - start_time) * 1000
                 )
             
@@ -242,7 +266,7 @@ def process_file(
             for element in elements[:min(3, len(elements))]:
                 observer.log_embedding_span(
                     trace_id=trace_id,
-                    embedding_model="all-MiniLM-L6-v2",
+                    embedding_model="text-embedding-3-small" if os.environ.get("OPENAI_API_KEY") else "all-MiniLM-L6-v2",
                     text_or_image=element["text"],
                     embedding_type="text",
                     embedding_dim=len(element["embedding"]),

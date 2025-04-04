@@ -248,8 +248,8 @@ class WeaviateClient:
                     
                     for element in elements:
                         # Regenerate embeddings (since they're not stored in the JSON)
-                        from bulk_process_files_with_phoenix import get_mock_embedding
-                        element["embedding"] = get_mock_embedding(element["text"])
+                        from bulk_process_files_with_phoenix import get_embedding
+                        element["embedding"] = get_embedding(element["text"])
                         element["source_file"] = str(file_path)
                         text_chunks.append(element)
             except Exception as e:
@@ -267,11 +267,11 @@ class WeaviateClient:
         
         image_embeddings = []
         for img_path in image_files:
-            # Generate mock embedding for the image
-            from bulk_process_files_with_phoenix import get_mock_embedding
+            # Generate embedding for the image
+            from bulk_process_files_with_phoenix import get_embedding
             img_data = {
                 "image_path": str(img_path),
-                "embedding": get_mock_embedding(os.path.basename(img_path))
+                "embedding": get_embedding(os.path.basename(img_path))
             }
             image_embeddings.append(img_data)
         

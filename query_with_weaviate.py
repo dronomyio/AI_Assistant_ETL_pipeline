@@ -7,7 +7,7 @@ import os
 import argparse
 import time
 from typing import List, Dict, Any
-from bulk_process_files_with_phoenix import get_mock_embedding
+from bulk_process_files_with_phoenix import get_embedding
 from weaviate_client import WeaviateClient
 
 def semantic_search(
@@ -32,7 +32,7 @@ def semantic_search(
     # Generate embedding for the query
     search_start_time = time.time()
     embedding_start_time = time.time()
-    query_embedding = get_mock_embedding(query)
+    query_embedding = get_embedding(query)
     embedding_duration = (time.time() - embedding_start_time) * 1000
     
     print(f"Embedding generated in {embedding_duration:.2f}ms")

@@ -131,20 +131,28 @@ python query_with_weaviate.py "your search query" --top-k 10 --cluster-url https
 
 ### Embedding Models
 
-By default, this implementation uses mock embeddings for demonstration purposes. In a production environment, you would want to replace the `get_mock_embedding` function with a real embedding model.
+This implementation now supports both OpenAI embeddings and fallback mock embeddings. When an OpenAI API key is provided through the `OPENAI_API_KEY` environment variable, the system will use the OpenAI `text-embedding-3-small` model to generate embeddings. If no API key is available, it automatically falls back to mock embeddings for demonstration purposes.
 
-You can modify the `weaviate_client.py` file to use a different embedding model or provider:
+The implementation is in the `get_embedding` function in `bulk_process_files_with_phoenix.py`:
 
 ```python
-# Example using OpenAI embeddings
+# Current implementation using OpenAI embeddings with fallback
 import openai
+import os
 
-def get_real_embedding(text: str) -> List[float]:
-    response = openai.Embedding.create(
-        input=text,
-        model="text-embedding-ada-002"
-    )
-    return response['data'][0]['embedding']
+def get_embedding(text: str) -> List[float]:
+    # Try to use OpenAI's API if API key is available
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    if openai_api_key:
+        client = openai.OpenAI(api_key=openai_api_key)
+        response = client.embeddings.create(
+            input=text,
+            model="text-embedding-3-small"
+        )
+        return response.data[0].embedding
+    
+    # Fallback to mock embeddings if no API key
+    return mock_embedding(text)
 ```
 
 ### Collection Schema
