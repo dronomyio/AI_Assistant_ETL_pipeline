@@ -1,12 +1,13 @@
-# AI Agent ETL Pipeline with Weaviate Integration
+# AI Agent ETL Pipeline with Weaviate Multimodal Integration
 
-This extension of the AI Agent ETL Pipeline adds Weaviate vector database integration for efficient semantic search across both text and image embeddings.
+This extension of the AI Agent ETL Pipeline adds Weaviate vector database integration for efficient multimodal semantic search across both text and image content.
 
 ## Features
 
 - Store text and image embeddings in Weaviate vector database
+- Multimodal search capabilities (text-to-text, text-to-image, image-to-text, image-to-image)
 - Support for both local Weaviate instance and Weaviate Cloud Service
-- Semantic search across text content and images
+- Multiple embedding provider options (OpenAI, Cohere)
 - Docker configuration for easy deployment
 
 ## Prerequisites
@@ -115,45 +116,87 @@ python query_with_weaviate.py "your search query"
 
 ### Command Line Arguments
 
-The `query_with_weaviate.py` script supports several command-line arguments:
+The `query_with_weaviate.py` script supports several command-line arguments for both text and image searches:
 
-```
+```bash
+# Text search
+python query_with_weaviate.py "your search query" --top-k 10
+
+# Image search
+python query_with_weaviate.py "optional context" --image path/to/image.jpg
+
+# Full options
 python query_with_weaviate.py "your search query" --top-k 10 --cluster-url https://your-cluster-url.weaviate.cloud --api-key your-api-key --embedding-api-key your-embedding-api-key
 ```
 
-- `query`: The search query (required)
+- `query`: The search query text (required)
+- `--image`: Path to an image file for image-based search (optional)
 - `--top-k`: Number of top results to return (default: 5)
 - `--cluster-url`: URL of Weaviate Cloud cluster
 - `--api-key`: API key for Weaviate Cloud
-- `--embedding-api-key`: API key for embedding provider (Cohere or OpenAI)
+- `--embedding-api-key`: API key for embedding provider (OpenAI or Cohere)
 
 ## Development and Customization
 
-### Embedding Models
+### Multimodal Embedding Models
 
-This implementation now supports both OpenAI embeddings and fallback mock embeddings. When an OpenAI API key is provided through the `OPENAI_API_KEY` environment variable, the system will use the OpenAI `text-embedding-3-small` model to generate embeddings. If no API key is available, it automatically falls back to mock embeddings for demonstration purposes.
+This implementation supports several embedding options for both text and images:
 
-The implementation is in the `get_embedding` function in `bulk_process_files_with_phoenix.py`:
+1. **Text Embeddings**:
+   - OpenAI (`text-embedding-3-small`) when `OPENAI_API_KEY` is provided
+   - Cohere (`embed-english-v3.0`) when `COHERE_API_KEY` is provided
+   - Mock embeddings as fallback
+
+2. **Image Embeddings**:
+   - Uses text-based context models with the image filename
+   - Stores the actual image data for use with Weaviate's CLIP integration
+   - Falls back to mock embeddings when needed
+
+The implementation uses a dedicated module (`multimodal_embeddings.py`) for generating embeddings:
 
 ```python
-# Current implementation using OpenAI embeddings with fallback
-import openai
-import os
-
-def get_embedding(text: str) -> List[float]:
-    # Try to use OpenAI's API if API key is available
+# Text embedding function in multimodal_embeddings.py
+def get_text_embedding(text: str) -> List[float]:
+    # Try OpenAI first
     openai_api_key = os.environ.get("OPENAI_API_KEY")
     if openai_api_key:
-        client = openai.OpenAI(api_key=openai_api_key)
-        response = client.embeddings.create(
-            input=text,
-            model="text-embedding-3-small"
-        )
-        return response.data[0].embedding
+        try:
+            import openai
+            client = openai.OpenAI(api_key=openai_api_key)
+            response = client.embeddings.create(
+                input=text,
+                model="text-embedding-3-small"
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logger.warning(f"OpenAI embedding failed: {str(e)}")
     
-    # Fallback to mock embeddings if no API key
-    return mock_embedding(text)
+    # Try Cohere as fallback
+    cohere_api_key = os.environ.get("COHERE_API_KEY")
+    if cohere_api_key:
+        try:
+            import cohere
+            co = cohere.Client(cohere_api_key)
+            response = co.embed(
+                texts=[text],
+                model="embed-english-v3.0" 
+            )
+            return response.embeddings[0]
+        except Exception as e:
+            logger.warning(f"Cohere embedding failed: {str(e)}")
+    
+    # Use mock embeddings as final fallback
+    return get_mock_embedding(text)
 ```
+
+### Native Multimodal Search
+
+The system supports Weaviate's native multimodal CLIP capabilities:
+
+- Uses `multi2vec_clip` module for multimodal operations
+- Supports both vector-based and native search methods
+- Adaptively falls back to vector search when native methods aren't available
+- Stores base64-encoded image data for proper multimodal processing
 
 ### Collection Schema
 

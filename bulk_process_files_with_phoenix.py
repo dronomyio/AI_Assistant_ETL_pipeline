@@ -90,50 +90,8 @@ def contextual_chunker(text, chunk_size=1000, chunk_overlap=200):
     
     return chunks
 
-def get_embedding(text: str) -> List[float]:
-    """
-    Generate an embedding for the text using OpenAI's API.
-    Falls back to mock embedding if OpenAI API is not configured.
-    
-    Args:
-        text: The text to generate an embedding for
-        
-    Returns:
-        A list of floats representing the embedding
-    """
-    import os
-    import hashlib
-    import numpy as np
-    
-    # Try to use OpenAI's API if API key is available
-    openai_api_key = os.environ.get("OPENAI_API_KEY")
-    if openai_api_key:
-        try:
-            import openai
-            client = openai.OpenAI(api_key=openai_api_key)
-            response = client.embeddings.create(
-                input=text,
-                model="text-embedding-3-small"  # Most recent model
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            print(f"Warning: Couldn't use OpenAI embeddings: {str(e)}")
-            print("Falling back to mock embeddings")
-    else:
-        print("Warning: No OpenAI API key found, using mock embeddings")
-    
-    # Fallback to mock embeddings
-    # Create a deterministic but unique embedding based on the text
-    text_hash = hashlib.md5(text.encode()).hexdigest()
-    np.random.seed(int(text_hash[:8], 16))
-    
-    # Generate a mock embedding with 384 dimensions
-    return np.random.normal(0, 1, 384).tolist()
-
-# Keep the old function name for backward compatibility
-def get_mock_embedding(text: str) -> List[float]:
-    """Alias for get_embedding for backward compatibility"""
-    return get_embedding(text)
+# Import the multimodal embedding functions
+from multimodal_embeddings import get_text_embedding, get_image_embedding, get_embedding, get_mock_embedding
 
 def process_file(
     file_path: str, 

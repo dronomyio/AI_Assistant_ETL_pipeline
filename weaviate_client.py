@@ -7,10 +7,19 @@ import os
 import json
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
+import base64
 import weaviate
 from weaviate.classes.init import Auth
-from weaviate.classes.config import Configure, Property, DataType
+from weaviate.classes.config import Configure, Property, DataType, Multi2VecField
 from dotenv import load_dotenv
+import logging
+
+# Import multimodal embedding functions
+from multimodal_embeddings import get_text_embedding, get_image_embedding, configure_weaviate_multimodal, image_to_base64
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file if present
 load_dotenv()
@@ -118,11 +127,22 @@ class WeaviateClient:
                         name="file_name", 
                         data_type=DataType.TEXT,
                         description="File name of the image"
+                    ),
+                    Property(
+                        name="image_data", 
+                        data_type=DataType.BLOB,
+                        description="Base64 encoded image data for multimodal embedding"
                     )
                 ],
                 vectorizer_config=Configure.Vectorizer.none()
             )
             print("Created ImageEmbedding collection")
+            
+            # Configure multimodal embeddings for ImageEmbedding collection
+            try:
+                configure_weaviate_multimodal(self.client, "ImageEmbedding")
+            except Exception as e:
+                logger.warning(f"Failed to configure multimodal embeddings for ImageEmbedding: {str(e)}")
     
     def store_text_chunks(self, chunks: List[Dict[str, Any]], batch_size: int = 100):
         """
@@ -182,12 +202,30 @@ class WeaviateClient:
                 if "embedding" not in image or "image_path" not in image:
                     continue
                 
+                image_path = image.get("image_path", "")
+                file_name = os.path.basename(image_path)
+                
+                # Convert image to base64 for multimodal embedding if file exists
+                image_data = None
+                if os.path.exists(image_path):
+                    try:
+                        image_data = image_to_base64(image_path)
+                        print(f"  Successfully encoded image: {file_name}")
+                    except Exception as e:
+                        logger.error(f"  Failed to encode image {file_name}: {str(e)}")
+                
                 # Add to batch with vector
+                properties = {
+                    "image_path": image_path,
+                    "file_name": file_name
+                }
+                
+                # Add image data if available
+                if image_data:
+                    properties["image_data"] = image_data
+                
                 batch.add_object(
-                    properties={
-                        "image_path": image.get("image_path", ""),
-                        "file_name": os.path.basename(image.get("image_path", ""))
-                    },
+                    properties=properties,
                     vector=image["embedding"]
                 )
                 
@@ -267,13 +305,20 @@ class WeaviateClient:
         
         image_embeddings = []
         for img_path in image_files:
-            # Generate embedding for the image
-            from bulk_process_files_with_phoenix import get_embedding
-            img_data = {
-                "image_path": str(img_path),
-                "embedding": get_embedding(os.path.basename(img_path))
-            }
-            image_embeddings.append(img_data)
+            # Generate proper image embedding
+            img_path_str = str(img_path)
+            try:
+                # Use the dedicated image embedding function
+                embedding = get_image_embedding(img_path_str)
+                print(f"Generated embedding for image: {os.path.basename(img_path_str)}")
+                
+                img_data = {
+                    "image_path": img_path_str,
+                    "embedding": embedding
+                }
+                image_embeddings.append(img_data)
+            except Exception as e:
+                logger.error(f"Failed to generate embedding for image {img_path_str}: {str(e)}")
         
         self.store_image_embeddings(image_embeddings)
         print(f"Imported {len(image_embeddings)} image embeddings")
